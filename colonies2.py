@@ -1,5 +1,6 @@
 import bisect
 from math import sqrt
+import math
 import pygame
 import random
 import torch
@@ -17,7 +18,7 @@ num_agents = 50
 agent_radius = 5
 speed = 5
 perception_radius = 100
-signal_radius = 200
+signal_radius = 50
 num_generations = 1
 num_steps = 400
 mutation_rate = 0.05
@@ -104,14 +105,15 @@ class Agent:
 
     def step(self, signals):
         perceptions = self.sense(signals)
+        # print(perceptions)
         with torch.no_grad():
             input_data = [0.0] * 9
             if perceptions:
-                dx1, dy1, signal_strength = perceptions[0]
+                dx1, dy1, signal_strength = perceptions
                 input_data[0] = dx1 / screen_size
                 input_data[1] = dy1 / screen_size
                 input_data[2] = min(1, signal_strength)
-                dx2, dy2, signal_strength = perceptions[0]
+                dx2, dy2, signal_strength = perceptions
                 input_data[3] = dx1 / screen_size
                 input_data[4] = dy1 / screen_size
                 input_data[5] = min(1, signal_strength)
@@ -143,34 +145,25 @@ class Agent:
 
 
     def sense(self, signals):
-        if not signals:
-            return []
-        perceptions = []
-        min_distance = float('inf')
-        min_index = -1
-        max_strength = -1
-        max_strength_ind = -1
-        for i, signal in enumerate(signals):
-            dx = signal.x - self.x
-            dy = signal.y - self.y
-            strength = signal.strength
-            distance_squared = dx ** 2 + dy ** 2
-            if distance_squared <= signal_radius ** 2:
-                if distance_squared < min_distance:
-                    min_distance = distance_squared
-                    min_index = i
-                if signal.strength > max_strength:
-                    max_strength = signal.strength
-                    max_strength_ind = i
-                
-        if min_index >= 0:
-            x = 1 - ((signals[min_index].x - self.x) / screen_size)
-            y = 1 - ((signals[min_index].y - self.y) / screen_size)
-            perceptions.append((x, y, signals[min_index].frequency))
-        if max_strength_ind >= 0:
-            perceptions.append((x, y, signals[min_index].frequency))
-    
-        return perceptions
+        perception_radius = signal_radius
+        combined_signal_strength = 0
+        combined_dx, combined_dy = 0, 0
+
+        for signal in signals:
+            distance = math.sqrt((self.x - signal.x)**2 + (self.y - signal.y)**2)
+            if distance <= perception_radius:
+                weight = 1 / (distance + 1e-6)  # Add a small epsilon to avoid division by zero
+                combined_signal_strength += signal.strength * weight
+                combined_dx += (signal.x - self.x) * weight
+                combined_dy += (signal.y - self.y) * weight
+
+        if combined_signal_strength > 0:
+            combined_dx /= combined_signal_strength
+            combined_dy /= combined_signal_strength
+            return combined_dx, combined_dy, combined_signal_strength
+        else:
+            return None
+
     
     def draw(self, screen):
         pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius)
