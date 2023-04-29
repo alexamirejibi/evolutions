@@ -352,11 +352,9 @@ class World:
         for i, agent in enumerate(self.agents):
             reward = agent.deposit_food()
             if reward > 0:
-                
+                pass
             total_reward += reward
-            
-            
-        
+
         for i, agent in enumerate(self.agents):
             agent.step(self.food_locations, total_reward, self.agents, epsilon=epsilon)
             
