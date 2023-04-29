@@ -16,17 +16,13 @@ import pickle
 
 
 # Parameters
-screen_size = 500
-num_agents = 5
-agent_radius = 5
-speed = 10
-perception_radius = 400
-num_generations = 1
-num_steps = 400
-mutation_rate = 0.05
-num_food_locations = 1
-num_foods = 50
-all_signals = []
+SCREEN_SIZE = 500
+NUM_AGENTS = 25
+AGENT_RADIUS = 5
+SPEED = 8
+PERCEPTION_RADIUS = 400
+NUM_FOOD_LOCATIONS = 1
+NUM_FOODS = 50
 
 # device = torch.device('mps')
 # device = torch.device('cpu')
@@ -49,8 +45,8 @@ class FoodLocation:
         pygame.draw.circle(screen, (255, 0, 0), (self.x, self.y), self.radius)
 
     def reset_random(self):
-        self.x = random.randint(0, screen_size)
-        self.y = random.randint(0, screen_size)
+        self.x = random.randint(0, SCREEN_SIZE)
+        self.y = random.randint(0, SCREEN_SIZE)
         self.num_foods_currently = self.num_foods
         
     def calc_radius(self):
@@ -70,8 +66,8 @@ class Colony:
         pygame.draw.circle(screen, (255, 255, 255), (self.x, self.y), self.radius)
     
     def randomize(self):
-        self.x = random.randint(0, screen_size)
-        self.y = random.randint(0, screen_size)
+        self.x = random.randint(0, SCREEN_SIZE)
+        self.y = random.randint(0, SCREEN_SIZE)
 
 
 class QNetwork(nn.Module):
@@ -166,47 +162,49 @@ class Agent:
         self.max_objects = 1
         # has_food, hit_wall, (dx, dy) of colony, (dx dy) of max_objects foods (1 closest food rn)
         self.input_len = 7 + (2 * self.max_objects)
-        self.output_len = 9
+        self.output_len = 3
         self.total_rewards = 0
         self.has_food = 0
-        self.pass_radius = self.radius * 5
+        self.pass_radius = self.radius * 10
         self.agent_passed_to = None
         self.steps_since_passing = 1
 
-    def step(self, signals, total_reward, agents):
-        sensed_food = self.sense(signals)
+    def step(self, food_locations, total_reward, agents, epsilon=0.1):
+        sensed_food = self.sense(food_locations)
         nearby_agent = self.sense_closest_agents(agents)
         dx, dy = (nearby_agent.x - self.x, nearby_agent.y - self.y)
-        dx /= screen_size
-        dy /= screen_size 
+        dx /= SCREEN_SIZE
+        dy /= SCREEN_SIZE 
         input_data = [0.0] * self.input_len
-        input_data[0] = self.x / screen_size
-        input_data[1] = self.y / screen_size
-        input_data[2] = (self.colony.x - self.x) / screen_size
-        input_data[3] = (self.colony.y - self.y) / screen_size
+        input_data[0] = self.x / SCREEN_SIZE
+        input_data[1] = self.y / SCREEN_SIZE
+        input_data[2] = (self.colony.x - self.x) / SCREEN_SIZE
+        input_data[3] = (self.colony.y - self.y) / SCREEN_SIZE
         input_data[4] = dx
         input_data[5] = dy
         input_data[6] = self.has_food
         for i, (dx, dy) in enumerate(sensed_food): # actually only 1 given currently
-            input_data[7 + 2 * i] = dx / screen_size
-            input_data[7 + 2 * i + 1] = dy / screen_size
+            input_data[7 + 2 * i] = dx / SCREEN_SIZE
+            input_data[7 + 2 * i + 1] = dy / SCREEN_SIZE
         next_state = input_data
 
+        # epsilon = 0.1
         if self.state is not None:
             reward = total_reward # reward from any other agent dropping food off at colony
             if not self.has_food:
-                reward += self.collect_food(food_locations)
-            reward += (1 - self.hit_wall) * 0.05 # 0.1 reward for not being stupid
+                self.collect_food(food_locations)
+            # reward += (1 - self.hit_wall) * 0.05 # 0.1 reward for not being stupid
             self.total_rewards += reward
             self.brain.memorize(self.state, self.action, reward, next_state, False)
+            # epsilon = max(0.1, 1 - reward / 2)
         self.state = next_state
-        self.action = self.brain.act(self.state)
-        dx, dy, pass_food_to_agent = self.action_to_movement(self.action)
-        x = self.x + speed * dx
-        y = self.y + speed * dy
+        self.action = self.brain.act(self.state, epsilon)
+        dx, dy, pass_food_to_agent = self.action_to_movement(self.action, food_locations)
+        x = self.x + SPEED * dx
+        y = self.y + SPEED * dy
         
         self.steps_since_passing += 1
-        if self.has_food and pass_food_to_agent:
+        if self.has_food and pass_food_to_agent and not nearby_agent.has_food:
             # self.steps_since_passing = 1
             self.pass_food(nearby_agent)
         
@@ -214,12 +212,12 @@ class Agent:
 
         # Keep the agent inside the screen boundaries
         self.hit_wall = 0
-        if 0 <= x <= screen_size:
+        if 0 <= x <= SCREEN_SIZE:
             self.x = x
         else:
             self.hit_wall = 1
 
-        if 0 <= y <= screen_size:
+        if 0 <= y <= SCREEN_SIZE:
             self.y = y
         else:
             self.hit_wall = 1
@@ -230,38 +228,47 @@ class Agent:
         if not self.has_food:
             return
         distance = np.sqrt((self.x - agent.x) ** 2 + (self.y - agent.y) ** 2)
-        if distance < self.radius + agent.radius:
+        if distance < self.pass_radius:
             self.agent_passed_to = agent
             self.steps_since_passing = 1
             self.has_food = 0
             agent.has_food = 1
 
-    def action_to_movement(self, action):
+    def action_to_movement(self, action, food_locations):
         dx, dy = 0, 0
         pass_food_to_agent = False
-        if action == 0:
-            dx, dy = 1, 0
-        elif action == 1:
-            dx, dy = -1, 0
-        elif action == 2:
-            dx, dy = 0, 1
-        elif action == 3:
-            dx, dy = 0, -1
-        elif action == 4:
-            dx, dy = 1 / math.sqrt(2), -1 / math.sqrt(2)
-        elif action == 5:
-            dx, dy = -1 / math.sqrt(2), -1 / math.sqrt(2)
-        elif action == 6:
-            dx, dy = 1 / math.sqrt(2), 1 / math.sqrt(2)
-        elif action == 7:
-            dx, dy = -1 / math.sqrt(2), 1 / math.sqrt(2)
-        elif action == 4:
+        x = 1e-6
+        
+        if action == 0:  # go towards food
+            min_distance = 99999999
+            closest_loc = None
+            for f in food_locations:
+                dx_f, dy_f = self.get_direction(f)
+                distance_sq = dy_f ** 2 + dx_f ** 2
+                if distance_sq < min_distance:
+                    min_distance = distance_sq
+                    dx = dx_f
+                    dy = dy_f
+            dx, dy = dx / ((abs(dx) + abs(dy)) + x), dy / ((abs(dx) + abs(dy)) + x)
+
+        elif action == 1:  # go towards colony
+            dx, dy = self.get_direction(self.colony)
+            dx, dy = dx / ((abs(dx) + abs(dy)) + x), dy / ((abs(dx) + abs(dy)) + x)
+
+        elif action == 2: # pass food
             pass_food_to_agent = True
+        
         return dx, dy, pass_food_to_agent
+
+    def get_direction(self, destination):
+        dx = destination.x - self.x
+        dy = destination.y - self.y
+        return dx, dy
+        
     
     def reset(self):
-        self.x = random.randint(0, screen_size)
-        self.y = random.randint(0, screen_size)
+        self.x = random.randint(0, SCREEN_SIZE)
+        self.y = random.randint(0, SCREEN_SIZE)
         self.hit_wall = 0
         self.total_rewards = 0
         self.has_food = 0
@@ -275,7 +282,7 @@ class Agent:
         food_coords = np.array([[food.x, food.y] for food in foods])
         dx_dy = food_coords - np.array([self.x, self.y])
         distances_squared = np.sum(dx_dy**2, axis=1)
-        mask = distances_squared <= perception_radius**2
+        mask = distances_squared <= PERCEPTION_RADIUS**2
 
         perceptions = dx_dy[mask]
         sorted_indices = np.argsort(np.sum(perceptions**2, axis=1))
@@ -305,10 +312,10 @@ class Agent:
         pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius)
         
         if self.has_food:
-            pygame.draw.circle(screen, (0, 0, 255), (self.x, self.y), agent_radius // 2)
+            pygame.draw.circle(screen, (0, 0, 255), (self.x, self.y), AGENT_RADIUS // 2)
         
         if self.agent_passed_to != None:
-            value = min(255, max(20, int(255 / (self.steps_since_passing) / 10)))
+            value = min(255, max(20, int(255 - (self.steps_since_passing / 10))))
             line_color = (value, value, value)
             pygame.draw.line(screen, line_color, (self.x, self.y), (self.agent_passed_to.x, self.agent_passed_to.y))
 
@@ -319,7 +326,7 @@ class Agent:
             if distance < self.radius + location.radius:
                 location.collect()
                 self.has_food = 1
-                return 0.5
+                return 0
         return 0
 
 
@@ -339,13 +346,19 @@ class World:
         self.brain = brain
         self.colony = colony
         
-    def step(self):
+    def step(self, epsilon=0.1):
         total_reward = 0
+        reward = 0
         for i, agent in enumerate(self.agents):
-            total_reward += agent.deposit_food()
+            reward = agent.deposit_food()
+            if reward > 0:
+                
+            total_reward += reward
+            
+            
         
         for i, agent in enumerate(self.agents):
-            agent.step(self.food_locations, total_reward, self.agents)
+            agent.step(self.food_locations, total_reward, self.agents, epsilon=epsilon)
             
     
             
@@ -357,14 +370,14 @@ class World:
                 
     def draw(self, screen):
             
-        for agent in self.agents:
-            agent.draw(screen)
-        
         for food in self.food_locations:
             food.draw(screen)
         
         self.colony.draw(screen)
                     
+        for agent in self.agents:
+            agent.draw(screen)
+            
     def randomize_reset(self):
         rewards = []
         for agent in agents:
@@ -377,15 +390,15 @@ class World:
     
     
 def create_agents_brain_colony(num_agents, agent_radius, batch_size):
-    colony = Colony(random.randint(0, screen_size), random.randint(0, screen_size))
-    agents = [Agent(random.randint(0, screen_size), random.randint(0, screen_size), agent_radius, brain=None, colony=colony) for _ in range(num_agents)]
+    colony = Colony(random.randint(0, SCREEN_SIZE), random.randint(0, SCREEN_SIZE))
+    agents = [Agent(random.randint(0, SCREEN_SIZE), random.randint(0, SCREEN_SIZE), agent_radius, brain=None, colony=colony) for _ in range(num_agents)]
     brain = Brain(input_size=agents[0].input_len, output_size=agents[0].output_len, hidden_size=64, batch_size=64, memory_size=10000, gamma=0.99, lr=1e-3, device=device)
     for a in agents:
         a.brain = brain
     return agents, brain, colony
 
 def create_food_locations(num_locations, num_foods):
-    food_locations = [FoodLocation(random.randint(0, screen_size), random.randint(0, screen_size)) for _ in range(num_locations)]
+    food_locations = [FoodLocation(random.randint(0, SCREEN_SIZE), random.randint(0, SCREEN_SIZE)) for _ in range(num_locations)]
     return food_locations
 
 def save_agents(agents, file_name):
@@ -407,16 +420,16 @@ def plot_avg_fitness(avg_fitness_top_25_percent):
 
 def main(world:World):
     pygame.init()
-    screen = pygame.display.set_mode((screen_size, screen_size))
+    screen = pygame.display.set_mode((SCREEN_SIZE, SCREEN_SIZE))
     pygame.display.set_caption('Random Population Movement with Senses')
     clock = pygame.time.Clock()
+    world.randomize_reset()
 
     running = True
     steps = 0
-    reset_at_steps = 100
     while running:
         steps += 1
-        if steps % 1000 == 0:
+        if steps % 500 == 0:
             world.randomize_reset()
         screen.fill((0, 0, 0))
         world.step()
@@ -431,13 +444,12 @@ def main(world:World):
     
 def parse_args():
     parser = argparse.ArgumentParser(description="Random Population Movement with Senses")
-    parser.add_argument("--num_agents", type=int, default=num_agents, help="Number of agents in the simulation")
-    parser.add_argument("--agent_radius", type=float, default=agent_radius, help="Radius of the agents")
-    parser.add_argument("--num_food_locations", type=int, default=num_food_locations, help="Number of food locations")
-    parser.add_argument("--num_foods", type=int, default=num_foods, help="Number of foods in each location")
+    parser.add_argument("--num_agents", type=int, default=NUM_AGENTS, help="Number of agents in the simulation")
+    parser.add_argument("--agent_radius", type=float, default=AGENT_RADIUS, help="Radius of the agents")
+    parser.add_argument("--num_food_locations", type=int, default=NUM_FOOD_LOCATIONS, help="Number of food locations")
+    parser.add_argument("--num_foods", type=int, default=NUM_FOODS, help="Number of foods in each location")
     parser.add_argument("--screen_size", type=int, default=500, help="Size of the screen for the simulation display")
     parser.add_argument("--model_path", type=str, default=None, help="Path to the saved model")
-    parser.add_argument("--model_save_path", type=str, default="./models/model_hive_hard.pt", help="Path to save the new model at")
     parser.add_argument("--train", action="store_true", help="Train the model")
     parser.add_argument("--display", action="store_true", help="Display the simulation using pygame")
     parser.add_argument("--epochs", type=int, default=10, help="How many epochs to train for")
@@ -453,25 +465,28 @@ def run_simulation(world, display):
         train(world)
 
 def train(world):
-    if args.path != None:
+    if args.model_path != None:
         world.brain.load_model(args.path)
     print("Training...")
     reset_at_steps = 0
     average_per_1000 = 0
+    epsilon = 1 # ehhh
+    average = 0
     for epoch in range(epochs):
         print("Epoch:", epoch)
         for step in range(ep_steps):
-            world.step()
+            epsilon = max(0.1, 1 - (average / NUM_FOODS))
+            world.step(epsilon=epsilon)
             if step % update_interval == 0:
                 world.update_agents_brains()
             reset_interval = (min(1000, (epoch + 1) * 100))
             if (step + 1) % reset_interval == 0: # start at 100 steps per reset and increase
                 rewards = world.randomize_reset()
                 average = (sum(rewards) / len(rewards)) * (1000 / reset_interval) # normalize averages to 1000 steps per reset
-            if (step + 1) % 1000 == 0:
-                print(f"Average rewards per 1000 steps at epoch {epoch} step {step + 1}: {average}")
+            if (step + 1) % 10000 == 0:
+                print(f"Avg rewards / 1000 steps, epsilon = {epsilon} at epoch {epoch} step {step + 1}: {average}")
         # main(world)
-        world.brain.save_model(args.model_save_path)  # Save the model
+        world.brain.save_model(f'./models/model.pt')  # Save the model
         print("Saved at epoch: ", epoch)
     main(world)
     
