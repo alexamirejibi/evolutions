@@ -51,13 +51,12 @@ Note: this cell failed on me when running in this notebook. If it doesn't work, 
 ```
 
 # Experiment 2: Hive Brain Reinforcement Learning
-It's not really a hive brain, but kinda! All agents have copies of the same model. Every 10 steps, the model is updated with the experiences of all of the agents. They all learn collectively.
+It's not really a hive brain, but kinda! All agents have copies of the same model. Every 10 steps, the model is updated with the experiences of all of the agents. In RL, we often use multiple instances of the environment for "parallel" training, but the environments are typically isolated from each other. The difference in this case is that we use a single environment with many instances of the same agent training in it collectively. This becomes particularly interesting in the second task, where I try to get them to cooperate.
 
 ## Easy task - just eat food
 This trains WAY faster than their genetic counterparts. I did this as a proof of concept to see if I could make the collective learning work. They are also very fun to watch.
 
 The demo model was trained for 10 epochs. Performance plateaus after.
-
 
 ```python
 ! python hivebrain_easy.py --model_path "models/hive_easy_trained_10_ep.pt" --display --num_foods 100
