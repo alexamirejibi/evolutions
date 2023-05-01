@@ -11,13 +11,6 @@ Simulating populations of primitive agents scavenging for resources.
 ! pip install pygame
 ```
 
-# If something doesn't work, this is the M1 nightly version of pytorch, which I use
-
-
-```python
-! pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu
-```
-
 # Experiment #1 - World.py
 First task: simulate actual evolution. Each agent has a neural network with a single hidden layer of size 12. Inputs: dy, dx of nearest food; outputs: direction to walk in. Yes, they're just evolving to output their inputs... not so easy for them as it sounds though.
 
@@ -38,10 +31,6 @@ To see how agents start off at generation 0, run this cell. The little green ite
 ! python world.py --mode display
 ```
 
-    pygame 2.3.0 (SDL 2.24.2, Python 3.11.3)
-    Hello from the pygame community. https://www.pygame.org/contribute.html
-
-
 ### All initialized as best agent from my training (200 generations)
 **By the way, you can click on the screen to make food appear.**
 These have a continuous action space so they are very smooth compared to the next experiments.
@@ -50,11 +39,6 @@ These have a continuous action space so they are very smooth compared to the nex
 ```python
 ! python world.py --mode display --model_path "best_agent_world_demo.pt" --num_foods 30
 ```
-
-    pygame 2.3.0 (SDL 2.24.2, Python 3.11.3)
-    Hello from the pygame community. https://www.pygame.org/contribute.html
-    Loading model...
-
 
 ### Training test
 If you want to try training them, execute this cell. It takes about 400 generations for them to start getting decently good. That takes about 20 minutes(?) Change it to a smaller number if you just want to test it.
@@ -79,11 +63,6 @@ The demo model was trained for 10 epochs. Performance plateaus after.
 ! python hivebrain_easy.py --model_path "models/hive_easy_trained_10_ep.pt" --display --num_foods 100
 ```
 
-    pygame 2.3.0 (SDL 2.24.2, Python 3.11.3)
-    Hello from the pygame community. https://www.pygame.org/contribute.html
-    Loaded model from models/hive_easy_trained_10_ep.pt
-
-
 ### Train it yourself
 From my trials it actually gets close to peak performance in about 5 epochs, which only takes a few minutes to train.
 
@@ -98,7 +77,6 @@ Now, instead of having food appear randomly on the map, there is only one big fo
 The goal here was to have them learn cooperative behavior: the food passing radius is fairly large, so the optimal policy would be cooperative. Every agent that participated in a given piece of food travelling to the colony gets rewarded.
 
 The real question is whether sharing the same brain here is a good idea.
-
 
 ```python
 ! python hivebrain_coop_dumb.py --display --model_path "models/hive_e30_s6.pt"
