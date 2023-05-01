@@ -16,7 +16,7 @@ First task: simulate actual evolution. Each agent has a neural network with a si
 
 At the end of each generation, the top 25% agents stay into the next (this is referred to as "elitism.") The rest of the agents are mutated versions of the top agents.
 
-We can specify the mutation rate with --mutation_rate. I use a dynamic mutation rate: if the agents aren't performing well, the mutation rate will be close to the specified rate. If they are performing well, the mutation rate will be lower. The rate adjusts at every generation. Thus, it's okay to go for a slightly high mutation rate to speed up evolution. I'd start with 0.2.
+We can specify the mutation rate with --mutation_rate. I use a dynamic mutation rate: if the agents aren't performing well, the mutation rate will be close to the specified rate. If they are performing well, the mutation rate will be lower. The rate adjusts at every generation. Thus, it's okay to go for a slightly high mutation rate to speed up evolution. I'd start with 0.2-0.3.
 
 
 ```python
