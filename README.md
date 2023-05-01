@@ -14,7 +14,7 @@ Simulating populations of primitive agents scavenging for resources.
 # Experiment #1 - World.py
 First task: simulate actual evolution. Each agent has a neural network with a single hidden layer of size 12. Inputs: dy, dx of nearest food; outputs: direction to walk in. Yes, they're just evolving to output their inputs... not so easy for them as it sounds though.
 
-At the end of each generation, the top %25 agents stay into the next (this is referred to as "elitism." The rest of the agents are mutated versions of the top agents.
+At the end of each generation, the top 25% agents stay into the next (this is referred to as "elitism." The rest of the agents are mutated versions of the top agents.
 
 We can specify the mutation rate with --mutation_rate. I use a dynamic mutation rate: if the agents aren't performing well, the mutation rate will be close to the specified rate. If they are performing well, the mutation rate will be lower. The rate adjusts at every generation. Thus, it's okay to go for a slightly high mutation rate to speed up evolution. I'd start with 0.2.
 
