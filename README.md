@@ -41,7 +41,7 @@ These have a continuous action space so they are very smooth compared to the nex
 ```
 
 ### Training test
-If you want to try training them, execute this cell. It takes about 400 generations for them to start getting decently good. That takes about 20 minutes(?) Change it to a smaller number if you just want to test it.
+If you want to try training them, execute this cell. It takes about 400 generations for them to start getting decently good. That takes about 30 minutes(?) Change it to a smaller number if you just want to test it.
 
 Note: this cell failed on me when running in this notebook. If it doesn't work, just paste it into a command line. It should work.
 
